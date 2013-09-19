@@ -33,7 +33,7 @@ public class CommandLineImpl {
             @Name(name = "value2", shortName = "v2", description = "Value2 description")
             String value2,
 
-            @DefaultValue(value = "true")
+            @DefaultValue("true")
             @Name(name = "value3", description = "Value3 description")
             boolean value3) {
         System.out.printf("globalParameter=%s%n", this.globalParameter);
