@@ -15,6 +15,11 @@ import java.util.Map;
  */
 public class CmdParser {
     /**
+     * Line separator string (platform independent).
+     */
+    private static final String LineSeparator = System.getProperty("line.separator");
+    
+    /**
      * Object to which the command line arguments will be dispatched to.
      */
     private Object _impl;
@@ -387,18 +392,18 @@ public class CmdParser {
      */
     private String getHelpText() {
         StringBuilder builder = new StringBuilder();
-        builder.append("Usage: java MainClass <command> [options...]"); builder.append(System.lineSeparator());
-        builder.append(System.lineSeparator());
+        builder.append("Usage: java MainClass <command> [options...]"); builder.append(LineSeparator);
+        builder.append(LineSeparator);
 
-        builder.append("Global options:"); builder.append(System.lineSeparator());
+        builder.append("Global options:"); builder.append(LineSeparator);
         for (GlobalParameter parameter : this._globalParameters) {
             builder.append("  ");
             builder.append(formatParameter(parameter.Parameter, 18));
-            builder.append(System.lineSeparator());
+            builder.append(LineSeparator);
         }
-        builder.append(System.lineSeparator());
+        builder.append(LineSeparator);
 
-        builder.append("Commands:"); builder.append(System.lineSeparator());
+        builder.append("Commands:"); builder.append(LineSeparator);
         for (Command command : this._commands) {
             builder.append(this.formatCommand(command));
         }
@@ -423,13 +428,13 @@ public class CmdParser {
             builder.append(' ');
         }
         builder.append(command.Description);
-        builder.append(System.lineSeparator());
+        builder.append(LineSeparator);
         for (Parameter parameter : command.Parameters) {
             builder.append("    ");
             builder.append(this.formatParameter(parameter, 20));
-            builder.append(System.lineSeparator());
+            builder.append(LineSeparator);
         }
-        builder.append(System.lineSeparator());
+        builder.append(LineSeparator);
 
         return builder.toString();
     }
