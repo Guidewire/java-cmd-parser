@@ -13,13 +13,13 @@ public class CommandLineImpl {
     @DefaultCommand
     @Name(name = "default", shortName = "d", description = "Default command with simple action")
     public void defaultCommand() {
-        System.out.printf("globalParameter=%s%s", this.globalParameter, System.lineSeparator());
+        System.out.printf("globalParameter=%s%n", this.globalParameter);
         System.out.println("Default Command");
     }
 
     @Name(name = "simple", shortName = "s", description = "Simple command with simple action")
     public void simpleCommand() {
-        System.out.printf("globalParameter=%s%s", this.globalParameter, System.lineSeparator());
+        System.out.printf("globalParameter=%s%n", this.globalParameter);
         System.out.println("Simple Command");
     }
 
@@ -36,8 +36,8 @@ public class CommandLineImpl {
             @DefaultValue(value = "true")
             @Name(name = "value3", description = "Value3 description")
             boolean value3) {
-        System.out.printf("globalParameter=%s%s", this.globalParameter, System.lineSeparator());
-        System.out.printf("Complex Command: %d, %s, %b%s", value1, value2, value3, System.lineSeparator());
+        System.out.printf("globalParameter=%s%n", this.globalParameter);
+        System.out.printf("Complex Command: %d, %s, %b%n", value1, value2, value3);
     }
 
     @Help
