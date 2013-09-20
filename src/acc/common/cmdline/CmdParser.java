@@ -308,7 +308,7 @@ public class CmdParser {
      * @return An object of the matching command, null if not found
      */
     private Command findCommand(String commandName) {
-        if (commandName != null) {
+        if (commandName != null && commandName.trim().length() > 0) {
             for (Command command : this._commands) {
                 if ((command.Name != null && command.Name.equals(commandName))
                         || (command.ShortName != null && command.ShortName.equals(commandName))) {
