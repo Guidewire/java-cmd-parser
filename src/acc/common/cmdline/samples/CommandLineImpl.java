@@ -7,7 +7,6 @@ import acc.common.cmdline.annotation.*;
  */
 public class CommandLineImpl {
     @Name(name = "global", shortName = "g", description = "Global parameter available to all commands")
-    @Regex("a[0-9]+")
     public String globalParameter = null;
 
     @DefaultCommand
@@ -25,19 +24,20 @@ public class CommandLineImpl {
 
     @Name(name = "complex", shortName = "c", description = "Complex command with parameters")
     public void complexCommand(
-            @Name(name = "value1", description = "Value1 description")
+            @Name(name = "param1", shortName = "p1", description = "First parameter")
             @LongRange(min = 10, max = 100)
-            int value1,
+            int param1,
 
             @Required
-            @Name(name = "value2", shortName = "v2", description = "Value2 description")
-            String value2,
+            @Name(name = "param2", shortName = "p2", description = "Second parameter")
+            @Regex("a[0-9]+")
+            String param2,
 
             @DefaultValue("true")
-            @Name(name = "value3", description = "Value3 description")
-            boolean value3) {
+            @Name(name = "param3", shortName = "p3", description = "Third parameter")
+            boolean param3) {
         System.out.printf("globalParameter=%s%n", this.globalParameter);
-        System.out.printf("Complex Command: %d, %s, %b%n", value1, value2, value3);
+        System.out.printf("Complex Command: %d, %s, %b%n", param1, param2, param3);
     }
 
     @Help

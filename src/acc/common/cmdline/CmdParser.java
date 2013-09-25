@@ -83,9 +83,9 @@ public class CmdParser {
         if (annotation != null) {
             Name nameAnnotation = (Name)annotation;
             if (nameAnnotation.name() != null) {
-                command.Name = nameAnnotation.name();
+                command.Name = nameAnnotation.name().toLowerCase();
             }
-            command.ShortName = nameAnnotation.shortName();
+            command.ShortName = nameAnnotation.shortName().toLowerCase();
             command.Description = nameAnnotation.description();
         }
 
@@ -129,8 +129,13 @@ public class CmdParser {
         for (Annotation annotation : annotations) {
             if (annotation.annotationType() == Name.class) {
                 Name name = (Name)annotation;
-                param.Name = name.name();
-                param.ShortName = name.shortName();
+                if (name.name() == null || name.name().trim().length() == 0) {
+                    throw new CmdException(CmdExceptionCode.PARSE_PARAM_NAME_UNDEFINED, "Undefined parameter name");
+                }
+                param.Name = name.name().toLowerCase();
+                if (name.shortName() != null) {
+                    param.ShortName = name.shortName().toLowerCase();
+                }
                 param.Description = name.description();
             }
             else if (annotation.annotationType() == DefaultValue.class) {
@@ -287,7 +292,7 @@ public class CmdParser {
         int separatorIndex = option.indexOf(':');
         Option result = new Option();
         if (separatorIndex > 0) {
-            result.Name = option.substring(0, separatorIndex);
+            result.Name = option.substring(0, separatorIndex).toLowerCase();
             if (option.length() > separatorIndex + 1) {
                 result.Value = option.substring(separatorIndex + 1);
             }
@@ -296,7 +301,7 @@ public class CmdParser {
             }
         }
         else {
-            result.Name = option;
+            result.Name = option.toLowerCase();
         }
 
         return result;
