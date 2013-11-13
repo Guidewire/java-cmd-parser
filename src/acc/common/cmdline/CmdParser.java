@@ -3,6 +3,7 @@ package acc.common.cmdline;
 import acc.common.cmdline.annotation.*;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -138,6 +139,11 @@ public class CmdParser {
                 }
                 param.Description = name.description();
             }
+            else if (annotation.annotationType() == Unnamed.class) {
+                Unnamed unnamed = (Unnamed)annotation;
+                param.IsUnnamed = true;
+                param.Description = unnamed.description();
+            }
             else if (annotation.annotationType() == DefaultValue.class) {
                 DefaultValue defaultValue = (DefaultValue)annotation;
                 param.DefaultValue = defaultValue.value();
@@ -162,7 +168,7 @@ public class CmdParser {
             }
         }
 
-        if (param.Name == null) {
+        if (!param.IsUnnamed && param.Name == null) {
             throw new CmdException(CmdExceptionCode.PARSE_PARAM_NAME_UNDEFINED, "Parameter name must be defined");
         }
 
@@ -193,6 +199,7 @@ public class CmdParser {
             throws CmdException {
         Command command = null;
         Map<String, Option> options = new HashMap<String, Option>();
+        ArrayList<String> unnamedOptions = new ArrayList<String>();
         for (String arg : args) {
             if (arg.startsWith("-")) {
                 // Option
@@ -200,14 +207,17 @@ public class CmdParser {
                 options.put(option.Name, option);
             }
             else {
-                // Command
+                // Command or Unnamed parameter
                 if (command != null) {
-                    throw new CmdException(CmdExceptionCode.DISPATCH_DUPLICATE_COMMAND, arg, "The command line can only have one command");
+                    // Command already specified, assuming it's a unnamed parameter
+                    unnamedOptions.add(arg);
+                    continue;
                 }
 
                 String commandName = arg.toLowerCase();
                 command = this.findCommand(commandName);
                 if (command == null) {
+                    // Unnamed parameters without a command are illegal
                     throw new CmdException(CmdExceptionCode.DISPATCH_UNKNOWN_COMMAND, arg, "Unknown command");
                 }
             }
@@ -231,9 +241,11 @@ public class CmdParser {
 
             if (!found) {
                 for (Parameter parameter : command.Parameters) {
-                    if (parameter.Name.equals(option.Name) || parameter.ShortName.equals(option.Name)) {
-                        found = true;
-                        break;
+                    if (!parameter.IsUnnamed) {
+                        if (parameter.Name.equals(option.Name) || parameter.ShortName.equals(option.Name)) {
+                            found = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -244,9 +256,29 @@ public class CmdParser {
         }
 
         ArrayList<Object> commandArgs = new ArrayList<Object>();
+        int unnamedIndex = 0;
         for (Parameter parameter : command.Parameters) {
             Object value;
-            if (options.containsKey(parameter.Name)) {
+            if (parameter.IsUnnamed) {
+                // Unnamed parameter
+                String name = "index=" + unnamedIndex;
+                if (unnamedIndex < unnamedOptions.size()) {
+                    value = getParameterValue(parameter.Type, name, unnamedOptions.get(unnamedIndex));
+                    unnamedIndex++;
+                }
+                else if (!parameter.IsRequired) {
+                    if (parameter.DefaultValue != null) {
+                        value = getParameterValue(parameter.Type, name, parameter.DefaultValue);
+                    }
+                    else {
+                        value = getDefaultValue(parameter.Type);
+                    }
+                }
+                else {
+                    throw new CmdException(CmdExceptionCode.DISPATCH_MISSING_REQUIRED_PARAMETER, name, "Missing unnamed option");
+                }
+            }
+            else if (options.containsKey(parameter.Name)) {
                 // Parameter specified using full name, good!
                 Option option = options.get(parameter.Name);
                 value = getParameterValue(parameter.Type, parameter.Name, option.Value);
@@ -271,6 +303,10 @@ public class CmdParser {
             }
             this.validate(value, parameter);
             commandArgs.add(value);
+        }
+
+        if (unnamedIndex < unnamedOptions.size()) {
+            throw new CmdException(CmdExceptionCode.DISPATCH_UNKNOWN_PARAMETER, unnamedOptions.get(unnamedIndex), "Unknown unnamed parameter");
         }
 
         this.runCommand(command, commandArgs.toArray(), options);
@@ -333,9 +369,19 @@ public class CmdParser {
      */
     private void validate(Object value, Parameter parameter) throws CmdException {
         if (parameter.Validator != null) {
-            String errorMessage = parameter.Validator.validateValue(value);
-            if (errorMessage != null) {
-                throw new CmdException(CmdExceptionCode.DISPATCH_VALIDATION_ERROR, parameter.Name, errorMessage);
+            if (parameter.Type.isArray()) {
+                for (int i = 0; i < Array.getLength(value); i++) {
+                    String errorMessage = parameter.Validator.validateValue(Array.get(value, i));
+                    if (errorMessage != null) {
+                        throw new CmdException(CmdExceptionCode.DISPATCH_VALIDATION_ERROR, parameter.Name, errorMessage);
+                    }
+                }
+            }
+            else {
+                String errorMessage = parameter.Validator.validateValue(value);
+                if (errorMessage != null) {
+                    throw new CmdException(CmdExceptionCode.DISPATCH_VALIDATION_ERROR, parameter.Name, errorMessage);
+                }
             }
         }
     }
@@ -403,7 +449,7 @@ public class CmdParser {
         builder.append("Global options:"); builder.append(LineSeparator);
         for (GlobalParameter parameter : this._globalParameters) {
             builder.append("  ");
-            builder.append(formatParameter(parameter.Parameter, 18));
+            builder.append(formatParameter(parameter.Parameter, 0, 18));
             builder.append(LineSeparator);
         }
         builder.append(LineSeparator);
@@ -434,10 +480,14 @@ public class CmdParser {
         }
         builder.append(command.Description);
         builder.append(LineSeparator);
+        int unnamedIndex = 0;
         for (Parameter parameter : command.Parameters) {
             builder.append("    ");
-            builder.append(this.formatParameter(parameter, 20));
+            builder.append(this.formatParameter(parameter, unnamedIndex, 20));
             builder.append(LineSeparator);
+            if (parameter.IsUnnamed) {
+                unnamedIndex++;
+            }
         }
         builder.append(LineSeparator);
 
@@ -447,21 +497,28 @@ public class CmdParser {
     /**
      * Generates help text for a parameter.
      * @param parameter Parameter to generate help text for
+     * @param unnamedIndex Current index of the unnamed parameter (for printing parameter name)
      * @param paramSize The size of the parameter block (for better alignment)
      * @return Help text for a parameter
      */
-    private String formatParameter(Parameter parameter, int paramSize) {
+    private String formatParameter(Parameter parameter, int unnamedIndex, int paramSize) {
         StringBuilder builder = new StringBuilder();
-        if (parameter.Name != null && parameter.Name.length() > 0) {
-            builder.append("--");
-            builder.append(parameter.Name);
+        if (parameter.IsUnnamed) {
+            builder.append("arg");
+            builder.append(unnamedIndex);
         }
-        if (parameter.ShortName != null && parameter.ShortName.length() > 0) {
-            if (builder.length() > 0) {
-                builder.append(", ");
+        else {
+            if (parameter.Name != null && parameter.Name.length() > 0) {
+                builder.append("--");
+                builder.append(parameter.Name);
             }
-            builder.append("-");
-            builder.append(parameter.ShortName);
+            if (parameter.ShortName != null && parameter.ShortName.length() > 0) {
+                if (builder.length() > 0) {
+                    builder.append(", ");
+                }
+                builder.append("-");
+                builder.append(parameter.ShortName);
+            }
         }
         while (builder.length() < paramSize) {
             builder.append(' ');
@@ -478,6 +535,33 @@ public class CmdParser {
         }
         builder.append("]");
         return builder.toString();
+    }
+
+    /**
+     * Sets the value of the specified element in an array.
+     * @param array Array object
+     * @param index Index of the array element to set
+     * @param valueClass Type of the value to set
+     * @param value Value to set
+     */
+    private static void setArrayValue(Object array, int index, Class valueClass, Object value) {
+        if (valueClass.equals(boolean.class)) {
+            Array.setBoolean(array, index, (Boolean)value);
+        } else if (valueClass.equals(byte.class)) {
+            Array.setByte(array, index, (Byte)value);
+        } else if (valueClass.equals(short.class)) {
+            Array.setShort(array, index, (Short)value);
+        } else if (valueClass.equals(char.class)) {
+            Array.setChar(array, index, (Character)value);
+        } else if (valueClass.equals(int.class)) {
+            Array.setInt(array, index, (Integer)value);
+        } else if (valueClass.equals(float.class)) {
+            Array.setFloat(array, index, (Float)value);
+        } else if (valueClass.equals(double.class)) {
+            Array.setDouble(array, index, (Double)value);
+        } else {
+            Array.set(array, index, value);
+        }
     }
 
     /**
@@ -500,6 +584,14 @@ public class CmdParser {
             }
         } else if (value == null) {
             throw new CmdException(CmdExceptionCode.DISPATCH_EMPTY_PARAMETER, name, "Parameter cannot be empty");
+        } else if (clazz.isArray()) {
+            String[] splitValues = value.split(",");
+            Object array = Array.newInstance(clazz.getComponentType(), splitValues.length);
+            for (int i = 0; i < splitValues.length; i++) {
+                Object elemValue = getParameterValue(clazz.getComponentType(), name, splitValues[i]);
+                setArrayValue(array, i, clazz.getComponentType(), elemValue);
+            }
+            return array;
         } else if (clazz.equals(byte.class)) {
             return Byte.parseByte(value);
         } else if (clazz.equals(short.class)) {
@@ -523,7 +615,9 @@ public class CmdParser {
      * @return Default value for a specified type
      */
     private static Object getDefaultValue(Class clazz) {
-        if (clazz.equals(boolean.class)) {
+        if (clazz.isArray()) {
+            return Array.newInstance(clazz.getComponentType(), 0);
+        } else if (clazz.equals(boolean.class)) {
             return Boolean.FALSE;
         } else if (clazz.equals(byte.class)) {
             return (byte) 0;
@@ -531,6 +625,8 @@ public class CmdParser {
             return (short) 0;
         } else if (clazz.equals(int.class)) {
             return 0;
+        } else if (clazz.equals(char.class)) {
+            return (char)0;
         } else if (clazz.equals(long.class)) {
             return (long) 0;
         } else if (clazz.equals(float.class)) {
@@ -563,6 +659,7 @@ public class CmdParser {
         public String ShortName;
         public String Description;
         public String DefaultValue;
+        public boolean IsUnnamed;
         public boolean IsRequired;
         public Class Type;
         public IValidator Validator;

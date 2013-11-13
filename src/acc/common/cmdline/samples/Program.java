@@ -1,6 +1,7 @@
 package acc.common.cmdline.samples;
 
 import acc.common.cmdline.CmdException;
+import acc.common.cmdline.CmdExceptionCode;
 import acc.common.cmdline.CmdParser;
 
 /**
