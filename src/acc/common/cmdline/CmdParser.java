@@ -325,7 +325,10 @@ public class CmdParser {
             option = option.substring(1);
         }
 
-        int separatorIndex = option.indexOf(':');
+        int separatorIndex = option.indexOf('=');
+        if (separatorIndex <= 0) {
+            separatorIndex = option.indexOf(':');
+        }
         Option result = new Option();
         if (separatorIndex > 0) {
             result.Name = option.substring(0, separatorIndex).toLowerCase();
